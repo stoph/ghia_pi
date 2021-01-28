@@ -1,25 +1,28 @@
 import RPi.GPIO as GPIO
-import os, time, sys, subprocess
-import threading
+import os, time, sys, subprocess, threading, serial, random
 
 # Define GPIO numbers for buttons
-button1 = 5
-button2 = 6
-button3 = 13
-button4 = 26
-button5 = 12
-#volume = 16
+button1_pin = 5
+button2_pin = 6
+button3_pin = 13
+button4_pin = 26
+button5_pin = 12
+#volume_pin = 16
 
 # Define default volume change
 vol_change = 5
 
-
+# Assign GPIO
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(button1, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(button2, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(button3, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(button4, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(button5, GPIO.IN)
+GPIO.setup(button1_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(button2_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(button3_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(button4_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(button5_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+# Set up Serial
+ser = serial.Serial('/dev/ttyS0', 9600, timeout=1)
+ser.flush()
 
 # Handle Ctrl-c to exit.
 from signal import signal, SIGINT
@@ -29,6 +32,7 @@ def signal_handler(signal_received, frame):
     exit(0)
 signal(SIGINT, signal_handler)
 
+# Button Debouncer
 class ButtonHandler(threading.Thread):
     # https://raspberrypi.stackexchange.com/a/76738/
     def __init__(self, pin, func, edge='both', bouncetime=200):
@@ -63,19 +67,17 @@ class ButtonHandler(threading.Thread):
         self.lastpinval = pinval
         self.lock.release()
 
-def mute(x):
+# Audio functions
+def mute():
     os.system('amixer sset Digital toggle')
 
-def previous_track(x):
+def previous_track():
     os.system('dbus-send --system --print-reply --dest=org.bluez /org/bluez/hci0/dev_F0_C3_71_79_14_05 org.bluez.MediaControl1.Previous')
 
-def next_track(x):
+def next_track():
     os.system('dbus-send --system --print-reply --dest=org.bluez /org/bluez/hci0/dev_F0_C3_71_79_14_05 org.bluez.MediaControl1.Next')
 
-def party(x):
-    print('party')
-
-def play_pause(x):
+def play_pause():
     print('play_pause')
     if str(subprocess.check_output("dbus-send --system --type=method_call --print-reply --dest=org.bluez /org/bluez/hci0/dev_F0_C3_71_79_14_05/player0 org.freedesktop.DBus.Properties.Get string:org.bluez.MediaPlayer1 string:'Status'", shell=True)).find("playing") > 0:
         pause()
@@ -100,27 +102,43 @@ def set_volume(vol):
     print('set_volume:' + vol)
     os.system('amixer sset Digital ' + vol + '%')
 
+def party():
+    print('party')
+    colorList = ['red', 'green', 'blue']
+    color = random.choice(colorList) + "\n"
+    print(color)
+    ser.write(str.encode(color))
+    ser.flush()
 
-# Button1 - Mute
-cb1 = ButtonHandler(button1, mute, edge='rising', bouncetime=100)
+# Button functions
+def button1(x):
+    mute()
+def button2(x):
+    previous_track()
+def button3(x):
+    next_track()
+def button4(x):
+    party()
+def button5(x):
+    play_pause()
+
+# Assign callback functions
+cb1 = ButtonHandler(button1_pin, button1, edge='rising', bouncetime=100)
 cb1.start()
-GPIO.add_event_detect(button1, GPIO.RISING, callback=cb1)
-# Button2 - Previous Track
-cb2 = ButtonHandler(button2, previous_track, edge='rising', bouncetime=100)
+GPIO.add_event_detect(button1_pin, GPIO.RISING, callback=cb1)
+cb2 = ButtonHandler(button2_pin, button2, edge='rising', bouncetime=100)
 cb2.start()
-GPIO.add_event_detect(button2, GPIO.RISING, callback=cb2)
-# Button3 - Next Track
-cb3 = ButtonHandler(button3, next_track, edge='rising', bouncetime=100)
+GPIO.add_event_detect(button2_pin, GPIO.RISING, callback=cb2)
+cb3 = ButtonHandler(button3_pin, button3, edge='rising', bouncetime=100)
 cb3.start()
-GPIO.add_event_detect(button3, GPIO.RISING, callback=cb3)
-# Button4 - ??
-cb4 = ButtonHandler(button4, play_pause, edge='rising', bouncetime=100)
+GPIO.add_event_detect(button3_pin, GPIO.RISING, callback=cb3)
+cb4 = ButtonHandler(button4_pin, button4, edge='rising', bouncetime=100)
 cb4.start()
-GPIO.add_event_detect(button4, GPIO.RISING, callback=cb4)
-# Button5 - Play/Pause
-cb5 = ButtonHandler(button5, play_pause, edge='rising', bouncetime=100)
+GPIO.add_event_detect(button4_pin, GPIO.RISING, callback=cb4)
+cb5 = ButtonHandler(button5_pin, button5, edge='rising', bouncetime=100)
 cb5.start()
-GPIO.add_event_detect(button5, GPIO.RISING, callback=cb5)
+GPIO.add_event_detect(button5_pin, GPIO.RISING, callback=cb5)
 
 while True:
     pass
+
