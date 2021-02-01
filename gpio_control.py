@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import RPi.GPIO as GPIO
-import os, time, sys, subprocess, threading, serial, random
+import os, time, sys, subprocess, threading, serial, random, signal
 from rotary_class import RotaryEncoder
 
 # Define GPIO numbers for buttons
@@ -25,54 +25,13 @@ GPIO.setup(button3_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.setup(button4_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.setup(button5_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-  
-
 # Set up Serial
 ser = serial.Serial('/dev/ttyS0', 9600, timeout=1)
 ser.flush()
 
-# Handle Ctrl-c to exit.
-from signal import signal, SIGINT
-from sys import exit
-def signal_handler(signal_received, frame):
-    print(signal_received)
-    exit(0)
-signal(SIGINT, signal_handler)
-
-# Button Debouncer
-class ButtonHandler(threading.Thread):
-    # https://raspberrypi.stackexchange.com/a/76738/
-    def __init__(self, pin, func, edge='both', bouncetime=200):
-        super().__init__(daemon=True)
-
-        self.edge = edge
-        self.func = func
-        self.pin = pin
-        self.bouncetime = float(bouncetime)/1000
-
-        self.lastpinval = GPIO.input(self.pin)
-        self.lock = threading.Lock()
-
-    def __call__(self, *args):
-        if not self.lock.acquire(blocking=False):
-            return
-
-        t = threading.Timer(self.bouncetime, self.read, args=args)
-        t.start()
-
-    def read(self, *args):
-        pinval = GPIO.input(self.pin)
-
-        if (
-                ((pinval == 0 and self.lastpinval == 1) and
-                 (self.edge in ['falling', 'both'])) or
-                ((pinval == 1 and self.lastpinval == 0) and
-                 (self.edge in ['rising', 'both']))
-        ):
-            self.func(*args)
-
-        self.lastpinval = pinval
-        self.lock.release()
+def signal_handler(sig, frame):
+    GPIO.cleanup()
+    sys.exit(0)
 
 # Audio functions
 def mute():
@@ -149,25 +108,15 @@ def volume_event(event):
     return
 
 # Assign callback functions
-cb1 = ButtonHandler(button1_pin, button1, edge='rising', bouncetime=10)
-cb1.start()
-GPIO.add_event_detect(button1_pin, GPIO.RISING, callback=cb1)
-cb2 = ButtonHandler(button2_pin, button2, edge='rising', bouncetime=100)
-cb2.start()
-GPIO.add_event_detect(button2_pin, GPIO.RISING, callback=cb2)
-cb3 = ButtonHandler(button3_pin, button3, edge='rising', bouncetime=100)
-cb3.start()
-GPIO.add_event_detect(button3_pin, GPIO.RISING, callback=cb3)
-cb4 = ButtonHandler(button4_pin, button4, edge='rising', bouncetime=100)
-cb4.start()
-GPIO.add_event_detect(button4_pin, GPIO.RISING, callback=cb4)
-cb5 = ButtonHandler(button5_pin, button5, edge='rising', bouncetime=100)
-cb5.start()
-GPIO.add_event_detect(button5_pin, GPIO.RISING, callback=cb5)
+GPIO.add_event_detect(button1_pin, GPIO.FALLING, callback=button1, bouncetime=200)
+GPIO.add_event_detect(button2_pin, GPIO.FALLING, callback=button2, bouncetime=200)
+GPIO.add_event_detect(button3_pin, GPIO.FALLING, callback=button3, bouncetime=200)
+GPIO.add_event_detect(button4_pin, GPIO.FALLING, callback=button4, bouncetime=200)
+GPIO.add_event_detect(button5_pin, GPIO.FALLING, callback=button5, bouncetime=200)
 
 # Assign Volume Callback functions
 volumeknob = RotaryEncoder(volume_pin_a,volume_pin_b,volume_pin_mute,volume_event)
 
-while True:
-    time.sleep(.05)
-    #pass
+#pass
+signal.signal(signal.SIGINT, signal_handler)
+signal.pause()
