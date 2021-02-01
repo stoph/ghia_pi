@@ -1,16 +1,21 @@
+#!/usr/bin/env python
+
 import RPi.GPIO as GPIO
 import os, time, sys, subprocess, threading, serial, random
+from rotary_class import RotaryEncoder
 
 # Define GPIO numbers for buttons
 button1_pin = 5
 button2_pin = 6
-button3_pin = 13
-button4_pin = 26
-button5_pin = 12
-#volume_pin = 16
+button3_pin = 12
+button4_pin = 13
+button5_pin = 26
+volume_pin_a = 17
+volume_pin_b = 16
+volume_pin_mute = 4
 
 # Define default volume change
-vol_change = 5
+vol_change = "5"
 
 # Assign GPIO
 GPIO.setmode(GPIO.BCM)
@@ -19,6 +24,8 @@ GPIO.setup(button2_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.setup(button3_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.setup(button4_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.setup(button5_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+  
 
 # Set up Serial
 ser = serial.Serial('/dev/ttyS0', 9600, timeout=1)
@@ -112,18 +119,37 @@ def party():
 
 # Button functions
 def button1(x):
-    mute()
+    print("1")
+    #mute()
 def button2(x):
+    print("2")
     previous_track()
 def button3(x):
+    print("3")
     next_track()
 def button4(x):
+    print("4")
     party()
 def button5(x):
+    print("5")
     play_pause()
 
+def volume_event(event):
+    if event == RotaryEncoder.CLOCKWISE:
+        print ("clockwise", RotaryEncoder.CLOCKWISE)
+        volume_up()
+    elif event == RotaryEncoder.ANTICLOCKWISE:
+        print ("anticlockwise", RotaryEncoder.ANTICLOCKWISE)
+        volume_down()
+    elif event == RotaryEncoder.BUTTONDOWN:
+        print ("button down", RotaryEncoder.BUTTONDOWN)
+        mute()
+    elif event == RotaryEncoder.BUTTONUP:
+        print ("button up", RotaryEncoder.BUTTONUP)
+    return
+
 # Assign callback functions
-cb1 = ButtonHandler(button1_pin, button1, edge='rising', bouncetime=100)
+cb1 = ButtonHandler(button1_pin, button1, edge='rising', bouncetime=10)
 cb1.start()
 GPIO.add_event_detect(button1_pin, GPIO.RISING, callback=cb1)
 cb2 = ButtonHandler(button2_pin, button2, edge='rising', bouncetime=100)
@@ -139,6 +165,9 @@ cb5 = ButtonHandler(button5_pin, button5, edge='rising', bouncetime=100)
 cb5.start()
 GPIO.add_event_detect(button5_pin, GPIO.RISING, callback=cb5)
 
-while True:
-    pass
+# Assign Volume Callback functions
+volumeknob = RotaryEncoder(volume_pin_a,volume_pin_b,volume_pin_mute,volume_event)
 
+while True:
+    time.sleep(.05)
+    #pass
